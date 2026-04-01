@@ -1,49 +1,50 @@
-"use client";
+import './index.css'
+import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'  // ← add this import
+import Auth from './auth'
+import Questions from './quiz'
 
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { SchoolLoginForm } from "./edumail";
-import { RegistryLoginForm } from "./RegisteryId";
+type View = 'auth' | 'questions' | 'dashboard'
 
-export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRef<"div">) {
-  const [tab, setTab] = useState<"school" | "registry">("school");
+export default function LoginForm() {
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [view, setView] = useState<View>('auth')
+  const supabase = createClient();
+  const handleAuthSuccess = async (user: any) => {
+    setCurrentUser(user)
+
+    // Check if this user has already completed setup
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', user.user_id)
+      .maybeSingle()
+
+    setView(profile ? 'dashboard' : 'questions')
+  }
+
+  const handleQuestionsComplete = (updatedUser: any) => {
+    setCurrentUser(updatedUser)
+    setView('dashboard')
+  }
+
+  if (view === 'auth') {
+    return <Auth onAuthSuccess={handleAuthSuccess} />
+  }
+
+  if (view === 'questions') {
+    return (
+      <Questions
+        user={currentUser}
+        onComplete={handleQuestionsComplete}
+      />
+    )
+  }
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Select how you want to login</CardDescription>
-
-          <div className="mt-4 flex border-b border-gray-200">
-            <button
-              type="button"
-              onClick={() => setTab("school")}
-              className={cn(
-                "px-4 py-2 -mb-px font-medium transition-colors",
-                tab === "school" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
-              )}
-            >
-              School Email
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("registry")}
-              className={cn(
-                "px-4 py-2 -mb-px font-medium transition-colors",
-                tab === "registry" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
-              )}
-            >
-              Registry ID
-            </button>
-          </div>
-        </CardHeader>
-
-        <CardContent className="pt-6">
-          {tab === "school" ? <SchoolLoginForm /> : <RegistryLoginForm />}
-        </CardContent>
-      </Card>
+    <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
+      <h1>Welcome, {currentUser?.first_name}!</h1>
+      <p>Dashboard coming soon.</p>
     </div>
-  );
+  )
 }

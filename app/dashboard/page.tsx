@@ -19,12 +19,7 @@ export default async function DashboardPage() {
     if (user) {
         displayIdentifier = user.email || "User";
     } else if (customUserStr) {
-        try {
-            const parsed = JSON.parse(customUserStr);
-            displayIdentifier = parsed.register_id || "Student";
-        } catch (err) {
-            redirect("/auth/login");
-        }
+        displayIdentifier = customUserStr;
     }
 
     // --- FAKE TEMPLATE DATA ---

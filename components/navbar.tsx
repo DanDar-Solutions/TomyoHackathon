@@ -17,11 +17,8 @@ export default async function Navbar() {
       displayIdentifier = user.email;
       displayInitials = user.email.slice(0, 2).toUpperCase();
   } else if (customUserStr) {
-      try {
-          const parsed = JSON.parse(customUserStr);
-          displayIdentifier = parsed.register_id || "ST";
-          displayInitials = displayIdentifier.slice(0, 2).toUpperCase();
-      } catch (err) {}
+      displayIdentifier = customUserStr;
+      displayInitials = displayIdentifier.slice(0, 2).toUpperCase();
   }
 
   return (
