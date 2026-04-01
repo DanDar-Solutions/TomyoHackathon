@@ -1,11 +1,15 @@
-// components/RegistryLoginForm.tsx
+"use client";
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signinRegistry } from "@/core/auth-action"; // Adjust path
+import { signinRegistry } from "@/core/auth-action";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner"; // Notification
 
 export function RegistryLoginForm() {
+    const router = useRouter();
     const [regNo, setRegNo] = useState("");
     const [birthDate, setBirthDate] = useState("");
     const [loading, setLoading] = useState(false);
@@ -17,9 +21,15 @@ export function RegistryLoginForm() {
         setError("");
 
         const result = await signinRegistry(regNo, birthDate);
-        if (result.error) setError(result.error);
-        else {
-            console.log("User Found:", result.user);
+        if (result?.error) {
+            setError(result.error);
+            toast.error(result.error);
+        } else {
+            toast.success("Login Successful! Welcome back.", {
+                description: "Navigating to your quizzes...",
+                position: "top-right"
+            });
+            router.push("/quiz");
         }
         setLoading(false);
     };

@@ -1,11 +1,15 @@
-// components/SchoolLoginForm.tsx
+"use client";
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signinEduMail } from "@/core/auth-action"; // Adjust path
+import { signinEduMail } from "@/core/auth-action";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export function SchoolLoginForm() {
+    const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
@@ -17,10 +21,15 @@ export function SchoolLoginForm() {
         setError("");
 
         const result = await signinEduMail(email, password);
-        if (result.error) setError(result.error);
-        else {
-            // Handle success (e.g., redirect)
-            console.log("Logged in:", result.user);
+        if (result?.error) {
+            setError(result.error);
+            toast.error(result.error);
+        } else {
+            toast.success("Login Successful!", {
+                description: "Getting your quizzes ready...",
+                position: "top-right",
+            });
+            router.push("/quiz");
         }
         setLoading(false);
     };
