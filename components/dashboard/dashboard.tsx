@@ -1,106 +1,271 @@
 "use client";
 
-export default function StudentDashboard({ user }: { user: any }) {
-    const homeworks = [
-        { id: 1, subject: 'Geography', task: 'Chapter 4 Notes', time: 'Tomorrow', color: 'bg-[#eef0fc] text-[#606fce]', dot: 'bg-[#a6aff4]' },
-        { id: 2, subject: 'Physics', task: 'Kinematics Worksheet', time: 'Wed', color: 'bg-[#fceede] text-[#fc6e35]', dot: 'bg-[#ffc1a6]' },
-        { id: 3, subject: 'Physics II', task: 'Lab Report', time: 'Thu', color: 'bg-[#fceede] text-[#fc6e35]', dot: 'bg-[#ffc1a6]' },
-        { id: 4, subject: 'Chemistry', task: 'Pre-lab Setup', time: 'Fri', color: 'bg-[#e6f9ed] text-[#27d861]', dot: 'bg-[#9ef0b8]' },
-        { id: 5, subject: 'Physical Ed', task: 'Fitness Log', time: 'Mon', color: 'bg-[#fff8e7] text-[#f9c02d]', dot: 'bg-[#ffeca4]' },
-        { id: 6, subject: 'Mathematics', task: 'Problem Set 3', time: 'Tue', color: 'bg-[#e7f9fb] text-[#26d0e6]', dot: 'bg-[#abf0f8]' },
-    ];
+// ─── Interfaces ──────────────────────────────────────────────────────────────
+
+interface DbHomework {
+    id?: number | string;
+    title?: string;
+    subject?: string;
+    due_date?: string | null;
+    status?: string | null;
+    [key: string]: unknown;
+}
+
+interface DbSchedule {
+    id?: string;
+    day_of_week?: number; // 0=Sun … 6=Sat
+    period?: number;
+    subject?: string;
+    start_time?: string;
+    end_time?: string;
+}
+
+interface DbProfile {
+    learning_style?: string | null;
+    stress_level?: string | null;
+    study_start_time?: string | null;
+    home_arrival_time?: string | null;
+    sleep_time?: string | null;
+    [key: string]: unknown;
+}
+
+interface Props {
+    user: {
+        user_id?: string;
+        first_name?: string;
+        class_id?: string;
+        classes?: { grade?: number; class_section?: string; class_name?: string };
+        [key: string]: unknown;
+    };
+    homework: DbHomework[];
+    schedule?: DbSchedule[];
+    profile?: DbProfile | null;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const PILL_THEMES = [
+    { color: "bg-[#eef0fc] text-[#606fce]", dot: "bg-[#a6aff4]" },
+    { color: "bg-[#fceede] text-[#fc6e35]", dot: "bg-[#ffc1a6]" },
+    { color: "bg-[#e6f9ed] text-[#27d861]", dot: "bg-[#9ef0b8]" },
+    { color: "bg-[#fff8e7] text-[#f9c02d]", dot: "bg-[#ffeca4]" },
+    { color: "bg-[#e7f9fb] text-[#26d0e6]", dot: "bg-[#abf0f8]" },
+];
+
+const MOCK_HOMEWORK = [
+    { id: 1, subject: "Geography",   task: "Chapter 4 Notes",     time: "Tomorrow", color: "bg-[#eef0fc] text-[#606fce]", dot: "bg-[#a6aff4]",  status: "Pending" },
+    { id: 2, subject: "Physics",     task: "Kinematics Worksheet", time: "Wed",      color: "bg-[#fceede] text-[#fc6e35]", dot: "bg-[#ffc1a6]",  status: "Pending" },
+    { id: 3, subject: "Physics II",  task: "Lab Report",           time: "Thu",      color: "bg-[#fceede] text-[#fc6e35]", dot: "bg-[#ffc1a6]",  status: "Pending" },
+    { id: 4, subject: "Chemistry",   task: "Pre-lab Setup",        time: "Fri",      color: "bg-[#e6f9ed] text-[#27d861]", dot: "bg-[#9ef0b8]",  status: "Pending" },
+    { id: 5, subject: "Physical Ed", task: "Fitness Log",          time: "Mon",      color: "bg-[#fff8e7] text-[#f9c02d]", dot: "bg-[#ffeca4]",  status: "Pending" },
+    { id: 6, subject: "Mathematics", task: "Problem Set 3",        time: "Tue",      color: "bg-[#e7f9fb] text-[#26d0e6]", dot: "bg-[#abf0f8]",  status: "Pending" },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatDue(dateStr: string | null | undefined): string {
+    if (!dateStr) return "TBD";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const diff = Math.round((d.getTime() - Date.now()) / 86_400_000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Tomorrow";
+    if (diff > 1 && diff < 7) return d.toLocaleDateString("en-US", { weekday: "short" });
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function buildCalendar() {
+    const now        = new Date();
+    const year       = now.getFullYear();
+    const month      = now.getMonth();
+    const monthName  = now.toLocaleDateString("en-US", { month: "long" });
+    const today      = now.getDate();
+    const formattedDate = now.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
+
+    const firstDow    = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrev  = new Date(year, month, 0).getDate();
+
+    const cells: { num: number; faded?: boolean; isToday?: boolean }[] = [];
+
+    for (let i = firstDow - 1; i >= 0; i--)  cells.push({ num: daysInPrev - i, faded: true });
+    for (let d = 1; d <= daysInMonth; d++)    cells.push({ num: d, isToday: d === today });
+
+    const trailing = 7 - (cells.length % 7);
+    if (trailing < 7) for (let d = 1; d <= trailing; d++) cells.push({ num: d, faded: true });
+
+    return { cells, monthName, today, formattedDate };
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function StudentDashboard({ user, homework, schedule = [], profile }: Props) {
+    const homeworks =
+        homework?.length > 0
+            ? homework.map((hw, i) => ({
+                  id:      hw.id ?? i,
+                  subject: (hw.subject as string) || "Assignment",
+                  task:    hw.title || "Untitled",
+                  time:    formatDue(hw.due_date),
+                  color:   PILL_THEMES[i % PILL_THEMES.length].color,
+                  dot:     PILL_THEMES[i % PILL_THEMES.length].dot,
+                  status:  hw.status || "Pending",
+              }))
+            : MOCK_HOMEWORK;
+
+    const { cells, monthName, today, formattedDate } = buildCalendar();
+
+    const displayName = (user?.first_name as string) || user?.user_id || "Student";
+    const classLabel  = user?.classes?.class_name
+        ? `Grade ${user.classes.grade} — Section ${user.classes.class_section}`
+        : null;
+
+    const todayDow      = new Date().getDay();
+    const todaySchedule = schedule
+        .filter((s) => s.day_of_week === todayDow)
+        .sort((a, b) => (a.period ?? 0) - (b.period ?? 0));
+
+    const focusSubject = homeworks[0]?.subject ?? todaySchedule[0]?.subject ?? "No tasks";
+    const focusTopic   = homeworks[0]?.task    ?? (todaySchedule[0] ? `${todaySchedule[0].start_time} – ${todaySchedule[0].end_time}` : "");
 
     return (
-        <div className="font-sans max-w-[1200px] w-full mx-auto p-10 text-[#1a1b24] bg-white min-h-screen">
+        <div className="font-sans max-w-[1200px] w-full mx-auto px-6 py-10 text-[#1a1b24] bg-white min-h-screen">
+
+            {/* ── Header ── */}
             <header className="mb-12">
-                <h1 className="text-[28px] font-medium text-[#a0a3bd] m-0">Hello, <span className="text-[#1a1b24] font-extrabold">{user?.user_id || 'Student07'}!</span></h1>
+                <h1 className="text-[28px] font-medium text-[#a0a3bd] m-0">
+                    Hello, <span className="text-[#1a1b24] font-extrabold">{displayName}!</span>
+                </h1>
+                {classLabel && (
+                    <p className="text-xs font-semibold text-[#a0a3bd] mt-1 tracking-wide">
+                        {classLabel}
+                    </p>
+                )}
             </header>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-20">
-                {/* LEFT SIDE: HOMEWORK */}
+            {/* ── Two-column grid ── */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-16 xl:gap-20">
+
+                {/* ══ LEFT: HOMEWORK ══ */}
                 <div className="flex flex-col">
-                    <h2 className="text-[20px] font-bold text-[#1a1b24] mb-1">Homework Tracker</h2>
-                    <p className="text-[14px] text-[#a0a3bd] font-medium mb-10">2 April 2026, Thursday</p>
+                    <h2 className="text-xl font-bold text-[#1a1b24] mb-1">Homework Tracker</h2>
+                    <p className="text-sm text-[#a0a3bd] font-medium mb-10">
+                        {new Date().toLocaleDateString("en-US", {
+                            weekday: "long", day: "numeric", month: "long", year: "numeric",
+                        })}
+                    </p>
 
                     <div className="flex flex-col gap-6">
-                        {homeworks.map(hw => (
-                            <div className="flex items-center gap-6" key={hw.id}>
-                                <div className="text-[15px] font-bold text-[#a0a3bd] min-w-[50px]">{hw.time}</div>
-                                <div className={`flex-1 flex items-center p-4 px-6 rounded-[16px] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_8px_16px_rgba(0,0,0,0.04)] cursor-pointer ${hw.color}`}>
-                                    <div className={`w-5 h-5 rounded-full mr-4 ${hw.dot}`}></div>
-                                    <div className="flex flex-col gap-1 flex-1">
-                                        <span className="text-[15px] font-bold">{hw.subject}</span>
-                                        <span className="text-[12px] font-medium opacity-70">{hw.task}</span>
+                        {homeworks.map((hw) => (
+                            <div key={hw.id} className="flex items-center gap-6">
+                                {/* Due label */}
+                                <div className="text-[15px] font-bold text-[#a0a3bd] min-w-[56px]">
+                                    {hw.time}
+                                </div>
+
+                                {/* Pill */}
+                                <div className={`flex-1 flex items-center px-6 py-4 rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_16px_rgba(0,0,0,0.04)] ${hw.color}`}>
+                                    <div className={`w-5 h-5 rounded-full mr-4 shrink-0 ${hw.dot}`} />
+                                    <div className="flex flex-col gap-1 flex-1 min-w-0">
+                                        <span className="text-[15px] font-bold leading-tight">{hw.subject}</span>
+                                        <span className="text-xs font-medium opacity-70 truncate">{hw.task}</span>
                                     </div>
-                                    <div className="text-[14px] font-bold">Pending</div>
+                                    <div className="text-[14px] font-bold ml-3 shrink-0">{hw.status}</div>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* RIGHT SIDE: CALENDAR */}
+                {/* ══ RIGHT: CALENDAR ══ */}
                 <div className="flex flex-col xl:border-l-2 xl:border-[#f4f5f7] xl:pl-16 pt-10 xl:pt-0 border-t-2 xl:border-t-0 border-[#f4f5f7]">
+
+                    {/* Upcoming bubbles + focus */}
                     <div className="flex flex-col items-center mb-10">
                         <div className="flex items-center gap-4 mb-6">
-                            <span className="text-[#e2e4e8] text-[24px] font-light">←</span>
-                            <div className="w-[80px] h-[80px] rounded-full bg-[#ffebb2] text-white flex items-center justify-center text-[32px] font-extrabold drop-shadow-[1px_1px_2px_rgba(255,200,0,0.3)]">12</div>
-                            <div className="w-[44px] h-[44px] rounded-full flex items-center justify-center text-[15px] font-bold text-white bg-[#ffc6bd]">16</div>
-                            <div className="w-[44px] h-[44px] rounded-full flex items-center justify-center text-[15px] font-bold text-white bg-[#ffc6bd] opacity-50">24</div>
-                            <div className="w-[44px] h-[44px] rounded-full flex items-center justify-center text-[15px] font-bold text-white bg-[#e0e4fe]">6</div>
-                            <span className="text-[#e2e4e8] text-[24px] font-light">→</span>
+                            <span className="text-[#e2e4e8] text-2xl font-light">←</span>
+
+                            {/* Today bubble (large) */}
+                            <div className="w-20 h-20 rounded-full bg-[#ffebb2] text-white flex items-center justify-center text-3xl font-extrabold drop-shadow-sm">
+                                {today}
+                            </div>
+
+                            {/* Small accent bubbles */}
+                            <div className="w-11 h-11 rounded-full bg-[#ffc6bd] flex items-center justify-center text-[15px] font-bold text-white">
+                                {today + 4 <= 31 ? today + 4 : today - 4}
+                            </div>
+                            <div className="w-11 h-11 rounded-full bg-[#ffc6bd] flex items-center justify-center text-[15px] font-bold text-white opacity-50">
+                                {today + 12 <= 31 ? today + 12 : today - 12}
+                            </div>
+                            <div className="w-11 h-11 rounded-full bg-[#e0e4fe] flex items-center justify-center text-[15px] font-bold text-white">
+                                {today - 6 > 0 ? today - 6 : today + 6}
+                            </div>
+
+                            <span className="text-[#e2e4e8] text-2xl font-light">→</span>
                         </div>
-                        <h4 className="text-[14px] font-bold text-[#f9c02d] mb-1">Physics</h4>
-                        <p className="text-[13px] font-medium text-[#a0a3bd]">Ohm's Law</p>
+
+                        <h4 className="text-sm font-bold text-[#f9c02d] mb-1">Today's Focus</h4>
+                        <p className="text-[13px] font-medium text-[#a0a3bd]">
+                            {focusSubject}{focusTopic ? ` — ${focusTopic}` : ""}
+                        </p>
                     </div>
 
-                    <div className="flex flex-col">
+                    {/* Calendar card */}
+                    <div>
+                        {/* Calendar header */}
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h3 className="text-[16px] font-extrabold m-0 text-[#1a1b24]">Calendar</h3>
-                                <p className="text-[12px] font-bold text-[#fc6e35] mt-1">04/02/2026</p>
+                                <h3 className="text-[16px] font-extrabold text-[#1a1b24] m-0">Calendar</h3>
+                                <p className="text-xs font-bold text-[#fc6e35] mt-1">{formattedDate}</p>
                             </div>
                             <div className="flex gap-2">
-                                <span className="text-[#e2e4e8] text-[24px] font-light">‹</span>
-                                <span className="text-[#e2e4e8] text-[24px] font-light">›</span>
+                                <span className="text-[#e2e4e8] text-2xl font-light leading-none">‹</span>
+                                <span className="text-[#e2e4e8] text-2xl font-light leading-none">›</span>
                             </div>
                         </div>
 
-                        <h4 className="text-center text-[15px] font-bold text-[#1a1b24] mb-6">April</h4>
+                        {/* Month name */}
+                        <h4 className="text-center text-[15px] font-bold text-[#1a1b24] mb-6">
+                            {monthName}
+                        </h4>
 
-                        <div className="grid grid-cols-7 gap-y-5 text-center mb-10">
-                            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-                                <div className="text-[11px] font-bold text-[#a0a3bd] uppercase mb-3" key={day}>{day}</div>
+                        {/* Day-of-week headers + dates */}
+                        <div className="grid grid-cols-7 text-center mb-10 gap-y-4">
+                            {["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map((d) => (
+                                <div key={d} className="text-[11px] font-bold text-[#a0a3bd] uppercase mb-2">
+                                    {d}
+                                </div>
                             ))}
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center relative text-[#cbd0d9]">31</div>
-                            {[1,2,3,4,5,6,7,8,9,10,11].map(num => (
-                                 <div key={num} className="text-[13px] font-semibold h-8 flex items-center justify-center text-[#1a1b24]">{num}</div>
+
+                            {cells.map((cell, idx) => (
+                                <div
+                                    key={idx}
+                                    className={[
+                                        "text-[13px] font-semibold h-8 flex items-center justify-center",
+                                        cell.faded
+                                            ? "text-[#cbd0d9]"
+                                            : cell.isToday
+                                                ? "text-white bg-[#f9c02d] rounded-full w-8 mx-auto"
+                                                : "text-[#1a1b24]",
+                                    ].join(" ")}
+                                >
+                                    {cell.num}
+                                </div>
                             ))}
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center text-white bg-[#f9c02d] rounded-full w-8 mx-auto">12</div>
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center text-white bg-[#f9c02d] rounded-full w-8 mx-auto">13</div>
-                            {[14,15].map(num => (
-                                 <div key={num} className="text-[13px] font-semibold h-8 flex items-center justify-center text-[#1a1b24]">{num}</div>
-                            ))}
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center text-white bg-[#fc6e35] rounded-full w-8 mx-auto">16</div>
-                            {[17,18,19,20,21].map(num => (
-                                 <div key={num} className="text-[13px] font-semibold h-8 flex items-center justify-center text-[#1a1b24]">{num}</div>
-                            ))}
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center text-white bg-[#fc6e35] rounded-full w-8 mx-auto">22</div>
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center text-[#1a1b24]">23</div>
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center text-white bg-[#606fce] rounded-full w-8 mx-auto">24</div>
-                            {[25,26,27,28,29,30].map(num => (
-                                 <div key={num} className="text-[13px] font-semibold h-8 flex items-center justify-center text-[#1a1b24]">{num}</div>
-                            ))}
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center relative text-[#cbd0d9]">1</div>
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center relative text-[#cbd0d9]">2</div>
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center relative text-[#cbd0d9]">3</div>
-                            <div className="text-[13px] font-semibold h-8 flex items-center justify-center relative text-[#cbd0d9]">4</div>
                         </div>
 
+                        {/* Legend */}
                         <div className="flex gap-6 justify-center border-t border-[#f4f5f7] pt-6 flex-wrap">
-                            <div className="flex items-center gap-2 text-[11px] font-semibold text-[#1a1b24]"><div className="w-2.5 h-2.5 rounded-full bg-[#606fce]"></div> Activities</div>
-                            <div className="flex items-center gap-2 text-[11px] font-semibold text-[#1a1b24]"><div className="w-2.5 h-2.5 rounded-full bg-[#fc6e35]"></div> Homework</div>
-                            <div className="flex items-center gap-2 text-[11px] font-semibold text-[#1a1b24]"><div className="w-2.5 h-2.5 rounded-full bg-[#f9c02d]"></div> Exams</div>
+                            {[
+                                { color: "bg-[#606fce]", label: "Activities" },
+                                { color: "bg-[#fc6e35]", label: "Homework"   },
+                                { color: "bg-[#f9c02d]", label: "Today"      },
+                            ].map(({ color, label }) => (
+                                <div key={label} className="flex items-center gap-2 text-[11px] font-semibold text-[#1a1b24]">
+                                    <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
+                                    {label}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

@@ -85,20 +85,6 @@ export default function Questions({ user, onComplete }: QuestionsProps) {
         setSaving(true)
         setError(null)
 
-        // Map question IDs → category
-        const categoryMap: Record<string, string> = {}
-        questions.forEach((q) => {
-            categoryMap[q.id] = q.category
-        })
-
-        // Build profile payload with explicit column mapping
-        const profilePayload: Record<string, any> = {
-            user_id: user.user_id,
-        }
-        
-        // Build demo_users payload for schedule stuff
-        const demoUsersPayload: Record<string, any> = {}
-
         // Energy level → stress_level (invert: high energy = low stress)
         const stressMap: Record<string, string> = {
             very_low: 'high',
@@ -115,9 +101,14 @@ export default function Questions({ user, onComplete }: QuestionsProps) {
             hard: 'high',
         }
 
+        // All fields go into user_profiles (schedules times live there, not on demo_users)
+        const profilePayload: Record<string, any> = {
+            user_id: user.user_id,
+        }
+
         questions.forEach((q) => {
             const value = answers[q.id]
-            if (value === undefined) return
+            if (value === undefined || value === '') return
 
             switch (q.category) {
                 case 'learning_style':
@@ -130,35 +121,21 @@ export default function Questions({ user, onComplete }: QuestionsProps) {
                     profilePayload.procrastination_risk = riskMap[value] ?? value
                     break
                 case 'schedule':
-                    // Distinguish by question_order
-                    if (q.question_order === 4) demoUsersPayload.home_arrival_time = value
-                    if (q.question_order === 5) demoUsersPayload.study_start_time = value
-                    if (q.question_order === 6) demoUsersPayload.sleep_time = value
+                    // Map by question_order to the correct user_profiles columns
+                    if (q.question_order === 4) profilePayload.home_arrival_time = value
+                    if (q.question_order === 5) profilePayload.study_start_time   = value
+                    if (q.question_order === 6) profilePayload.sleep_time         = value
                     break
             }
         })
 
-        // 1. Update demo_users with schedule data if any exists
-        if (Object.keys(demoUsersPayload).length > 0) {
-            const { error: syncError } = await supabase
-                .from('demo_users')
-                .update(demoUsersPayload)
-                .eq('user_id', user.user_id)
-                
-            if (syncError) {
-                setError('Failed to sync schedule metadata. Please try again.')
-                setSaving(false)
-                return
-            }
-        }
-
-        // 2. Upsert user_profiles with psychology data
+        // Upsert into user_profiles — all psychology + schedule data goes here
         const { error: upsertError } = await supabase
             .from('user_profiles')
             .upsert(profilePayload, { onConflict: 'user_id' })
 
         if (upsertError) {
-            setError('Failed to save your profile insights. Please try again.')
+            setError('Failed to save your profile. Please try again.')
             setSaving(false)
         } else {
             onComplete(user)

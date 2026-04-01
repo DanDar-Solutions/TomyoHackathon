@@ -3,75 +3,81 @@
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
-export async function signinRegistry(regNo: string, birthDate: string) {
+// ─────────────────────────────────────────────
+// Sign In (Registry ID + password)
+// ─────────────────────────────────────────────
+export async function signinRegistry(regNo: string, password: string) {
     const supabase = await createClient();
-    
-    let { data, error } = await supabase
+
+    const { data, error } = await supabase
         .from('demo_users')
         .select('*')
         .eq('user_id', regNo)
-        .eq('password', birthDate)
+        .eq('password', password)
         .maybeSingle();
 
-    if (error) return { error: 'Something went wrong. Please try again.', user: null };
-    if (!data) {
-        return { error: 'Invalid user ID or password.', user: null };
-    }
+    if (error) return { error: 'Something went wrong. Please try again.', user: null, hasQuiz: false };
+    if (!data)  return { error: 'Invalid user ID or password.', user: null, hasQuiz: false };
+
+    // Set session cookie
     const cookieStore = await cookies();
-    cookieStore.set('custom_auth_user', data?.user_id, { 
+    cookieStore.set('custom_auth_user', data.user_id, {
         path: '/',
         maxAge: 60 * 60 * 24 * 7, // 7 days
-        sameSite: 'lax'
+        sameSite: 'lax',
+        httpOnly: true,            // ← secure: not readable by JS
     });
+
+    // Check if onboarding quiz has been completed
     const { data: profile } = await supabase
         .from('user_profiles')
         .select('id')
         .eq('user_id', regNo)
         .maybeSingle();
+
     revalidatePath('/', 'layout');
-        
     return { user: data, hasQuiz: !!profile, error: null };
 }
 
-export async function signupRegistry(regNo: string, passwordStr: string) {
-    const supabase = await createClient();
-    const { data: existing } = await supabase
-        .from('demo_users')
-        .select('user_id')
-        .eq('user_id', regNo)
-        .maybeSingle();
-    if (existing) {
-        return { error: 'This user ID is already taken. Please choose another.', user: null };
-    }
-    const { error: insertError } = await supabase
-        .from('demo_users')
-        .insert([{ user_id: regNo, password: passwordStr }]);
-    if (insertError) {
-        return { error: 'Failed to create account. Please try again.', user: null };
-    }
-    
-    return await signinRegistry(regNo, passwordStr);
-}
-
-
+// ─────────────────────────────────────────────
+// Sign Out
+// ─────────────────────────────────────────────
 export async function signOut() {
-    const supabase = await createClient();
     const cookieStore = await cookies();
     cookieStore.delete('custom_auth_user');
-    await supabase.auth.signOut();
+    await (await createClient()).auth.signOut();
     revalidatePath('/', 'layout');
+    redirect('/auth/login');
 }
 
-export async function getCurrentDemoUser() {
-    const cookieStore = await cookies();
-    const val = cookieStore.get("custom_auth_user")?.value;
-    if (!val) return null;
-    
+// ─────────────────────────────────────────────
+// Get current logged-in demo user
+// Falls back to reading the cookie if no id is passed.
+// ─────────────────────────────────────────────
+export async function getCurrentDemoUser(id?: string | number | null) {
     const supabase = await createClient();
-    const { data } = await supabase.from('demo_users').select('*').eq('user_id', val).single();
+
+    let searchId = id ? String(id) : null;
+
+    if (!searchId) {
+        const cookieStore = await cookies();
+        searchId = cookieStore.get('custom_auth_user')?.value ?? null;
+    }
+
+    if (!searchId) return null;
+
+    const { data, error } = await supabase
+        .from('demo_users')
+        .select('*, classes(id, grade, class_section, class_name)')   // join class info
+        .eq('user_id', searchId)
+        .maybeSingle();
+
+    if (error) {
+        console.error('getCurrentDemoUser error:', error.message);
+        return null;
+    }
+
     return data;
 }
-
-
-
