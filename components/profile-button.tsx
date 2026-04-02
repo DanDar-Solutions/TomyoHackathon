@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, LayoutDashboard } from "lucide-react";
+import { LogOut, LayoutDashboard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/services/auth.service";
 import { toast } from "sonner";
@@ -45,12 +45,6 @@ export function ProfileButton({ initials, email }: { initials: string, email: st
           <LayoutDashboard className="mr-2 h-4 w-4" />
           <span>Dashboard</span>
         </DropdownMenuItem>
-        
-        <DropdownMenuItem onClick={() => router.push("/quiz")} className="cursor-pointer">
-          <User className="mr-2 h-4 w-4" />
-          <span>Training Quizzes</span>
-        </DropdownMenuItem>
-
         <DropdownMenuSeparator />
         
         <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/10 transition-colors">
