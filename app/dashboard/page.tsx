@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { getStudentDashboardData } from "@/lib/services/student.service";
 import StudentDashboard from "@/components/dashboard/dashboard";
-import { DashboardSkeleton } from "./dashboard-skeleton";
+import { DashboardSkeleton } from "../../components/dashboard/dashboard-skeleton";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import DailyPage from "./DailyPage";
+import DailyPage from "../../components/dashboard/DailyPage";
 
 async function DashboardDataWrapper() {
     const cookieStore = await cookies();
