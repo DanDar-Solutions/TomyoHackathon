@@ -6,7 +6,11 @@ interface DbHomework {
     id?: number | string;
     title?: string;
     subject?: string;
+    description?: string | null;
+    assigned_date?: string | null;
     due_date?: string | null;
+    difficulty?: string | null;
+    estimated_minutes?: number | null;
     status?: string | null;
     [key: string]: unknown;
 }
@@ -52,26 +56,30 @@ const PILL_THEMES = [
     { color: "bg-[#e7f9fb] text-[#26d0e6]", dot: "bg-[#abf0f8]" },
 ];
 
-const MOCK_HOMEWORK = [
-    { id: 1, subject: "Geography",   task: "Chapter 4 Notes",     time: "Tomorrow", color: "bg-[#eef0fc] text-[#606fce]", dot: "bg-[#a6aff4]",  status: "Pending" },
-    { id: 2, subject: "Physics",     task: "Kinematics Worksheet", time: "Wed",      color: "bg-[#fceede] text-[#fc6e35]", dot: "bg-[#ffc1a6]",  status: "Pending" },
-    { id: 3, subject: "Physics II",  task: "Lab Report",           time: "Thu",      color: "bg-[#fceede] text-[#fc6e35]", dot: "bg-[#ffc1a6]",  status: "Pending" },
-    { id: 4, subject: "Chemistry",   task: "Pre-lab Setup",        time: "Fri",      color: "bg-[#e6f9ed] text-[#27d861]", dot: "bg-[#9ef0b8]",  status: "Pending" },
-    { id: 5, subject: "Physical Ed", task: "Fitness Log",          time: "Mon",      color: "bg-[#fff8e7] text-[#f9c02d]", dot: "bg-[#ffeca4]",  status: "Pending" },
-    { id: 6, subject: "Mathematics", task: "Problem Set 3",        time: "Tue",      color: "bg-[#e7f9fb] text-[#26d0e6]", dot: "bg-[#abf0f8]",  status: "Pending" },
-];
+const DIFFICULTY_BADGE: Record<string, string> = {
+    easy:   "bg-[#e6f9ed] text-[#27d861]",
+    medium: "bg-[#fff8e7] text-[#e5a800]",
+    hard:   "bg-[#fce8e8] text-[#d83a3a]",
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDue(dateStr: string | null | undefined): string {
     if (!dateStr) return "TBD";
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + "T00:00:00");
     if (isNaN(d.getTime())) return dateStr;
-    const diff = Math.round((d.getTime() - Date.now()) / 86_400_000);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diff = Math.round((d.getTime() - now.getTime()) / 86_400_000);
+    if (diff < 0) return "Overdue";
     if (diff === 0) return "Today";
     if (diff === 1) return "Tomorrow";
     if (diff > 1 && diff < 7) return d.toLocaleDateString("en-US", { weekday: "short" });
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function capitalize(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
 function buildCalendar() {
@@ -103,15 +111,18 @@ export default function StudentDashboard({ user, homework, schedule = [], profil
     const homeworks =
         homework && homework.length > 0
             ? homework.map((hw, i) => ({
-                  id:      hw.id ?? i,
-                  subject: (hw.subject as string) || "Assignment",
-                  task:    hw.title || "Untitled",
-                  time:    formatDue(hw.due_date),
-                  color:   PILL_THEMES[i % PILL_THEMES.length].color,
-                  dot:     PILL_THEMES[i % PILL_THEMES.length].dot,
-                  status:  hw.status || "Pending",
+                  id:         hw.id ?? i,
+                  subject:    hw.subject || "Assignment",
+                  task:       hw.title || "Untitled",
+                  description: hw.description || "",
+                  time:       formatDue(hw.due_date),
+                  color:      PILL_THEMES[i % PILL_THEMES.length].color,
+                  dot:        PILL_THEMES[i % PILL_THEMES.length].dot,
+                  status:     capitalize(hw.status || "pending"),
+                  difficulty: hw.difficulty || null,
+                  minutes:    hw.estimated_minutes || null,
               }))
-            : MOCK_HOMEWORK;
+            : [];
 
     const { cells, monthName, today, formattedDate } = buildCalendar();
 
@@ -155,26 +166,44 @@ export default function StudentDashboard({ user, homework, schedule = [], profil
                         })}
                     </p>
 
-                    <div className="flex flex-col gap-6">
-                        {homeworks.map((hw) => (
-                            <div key={hw.id} className="flex items-center gap-6">
-                                {/* Due label */}
-                                <div className="text-[15px] font-bold text-[#a0a3bd] min-w-[56px]">
-                                    {hw.time}
-                                </div>
-
-                                {/* Pill */}
-                                <div className={`flex-1 flex items-center px-6 py-4 rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_16px_rgba(0,0,0,0.04)] ${hw.color}`}>
-                                    <div className={`w-5 h-5 rounded-full mr-4 shrink-0 ${hw.dot}`} />
-                                    <div className="flex flex-col gap-1 flex-1 min-w-0">
-                                        <span className="text-[15px] font-bold leading-tight">{hw.subject}</span>
-                                        <span className="text-xs font-medium opacity-70 truncate">{hw.task}</span>
+                    {homeworks.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                            <div className="text-5xl mb-4">📚</div>
+                            <p className="text-[#a0a3bd] text-[15px] font-medium">No homework assigned yet</p>
+                            <p className="text-[#cbd0d9] text-[13px] mt-1">When your teachers add homework, it will show up here.</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-5">
+                            {homeworks.map((hw) => (
+                                <div key={hw.id} className="flex items-center gap-5">
+                                    {/* Due label */}
+                                    <div className={`text-[14px] font-bold min-w-[64px] text-right ${hw.time === "Overdue" ? "text-[#d83a3a]" : hw.time === "Today" ? "text-[#f9c02d]" : "text-[#a0a3bd]"}`}>
+                                        {hw.time}
                                     </div>
-                                    <div className="text-[14px] font-bold ml-3 shrink-0">{hw.status}</div>
+
+                                    {/* Pill */}
+                                    <div className={`flex-1 flex items-center px-6 py-4 rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_16px_rgba(0,0,0,0.04)] ${hw.color}`}>
+                                        <div className={`w-5 h-5 rounded-full mr-4 shrink-0 ${hw.dot}`} />
+                                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                                            <span className="text-[15px] font-bold leading-tight">{hw.subject}</span>
+                                            <span className="text-xs font-medium opacity-70 truncate">{hw.task}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 ml-3 shrink-0">
+                                            {hw.difficulty && (
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${DIFFICULTY_BADGE[hw.difficulty] ?? "bg-gray-100 text-gray-500"}`}>
+                                                    {hw.difficulty}
+                                                </span>
+                                            )}
+                                            {hw.minutes && (
+                                                <span className="text-[11px] font-semibold opacity-60">{hw.minutes}min</span>
+                                            )}
+                                            <div className="text-[13px] font-bold">{hw.status}</div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* ══ RIGHT: CALENDAR ══ */}
